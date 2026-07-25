@@ -39,10 +39,10 @@ export default function SponsorBanner() {
     let active = true;
 
     getRuntimeAppConfig()
-      .then(async (config) => {
+      .then((config) => {
+        if (!active) return;
         if (!isRenderableSponsorBanner(config.sponsorBanner)) return;
-        const loaded = await Image.prefetch(config.sponsorBanner.imageUrl);
-        if (active && loaded) setBanner(config.sponsorBanner);
+        setBanner(config.sponsorBanner);
       })
       .catch(() => undefined);
 

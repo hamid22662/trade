@@ -88,7 +88,7 @@ check('Runtime config avoids stale cache and credentials', appConfigService.incl
 check('Runtime config keeps environment fallback', appConfigService.includes('return environmentRuntimeAppConfig') && runtimeAppConfig.includes('environmentRuntimeAppConfig'));
 check('Static config exposes only allowlisted public keys', JSON.stringify(Object.keys(staticAppConfig).sort()) === JSON.stringify(expectedConfigKeys));
 check('Sponsor banner fails closed without valid complete config', sponsorBanner.includes('isRenderableSponsorBanner') && sponsorBanner.includes('if (!isRenderableSponsorBanner(banner)) return null'));
-check('Sponsor image loads before entering the layout', sponsorBanner.includes('Image.prefetch') && sponsorBanner.includes('if (active && loaded) setBanner'));
+check('Sponsor image hides itself if it fails to load', sponsorBanner.includes("onError={() => setBanner(null)}"));
 check('Sponsor links open outside the current app view', sponsorBanner.includes("'_blank'") && sponsorBanner.includes('Linking.openURL'));
 check('Sponsor banner is placed on Dashboard and Settings', dashboard.includes('<SponsorBanner />') && settings.includes('<SponsorBanner />'));
 check('Privacy screen is routed from Settings', navigator.includes('name="Privacy"') && settings.includes("navigation.navigate('Privacy')"));
