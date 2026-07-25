@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+.android-export/
+dist/
+*.jks
+*.keystore
+.env
+backups/
+
+# Local signing credentials - never upload
+credentials.json
+android/keystores/

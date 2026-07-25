@@ -1,0 +1,14 @@
+{
+  "telegram_support_username": "",
+  "sponsor_banner": {
+    "image_url": "",
+    "target_url": "",
+    "enabled": false
+  },
+  "ad_network_ids": {
+    "adsense_web": "",
+    "admob_android": ""
+  },
+  "min_app_version": "1.0.2",
+  "force_update_message": "برای ادامه استفاده از TradeLog، لطفاً برنامه را به آخرین نسخه به‌روزرسانی کنید."
+}

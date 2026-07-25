@@ -1,0 +1,22 @@
+AddType application/manifest+json .webmanifest
+
+<IfModule mod_headers.c>
+  <Files "app-config.json">
+    Header always set Cache-Control "no-store, max-age=0"
+  </Files>
+
+  <Files "sw.js">
+    Header always set Cache-Control "no-cache, max-age=0, must-revalidate"
+  </Files>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [L]
+</IfModule>
