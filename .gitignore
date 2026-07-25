@@ -10,3 +10,4 @@ backups/
 # Local signing credentials - never upload
 credentials.json
 android/keystores/
+dist_fixed*.zip

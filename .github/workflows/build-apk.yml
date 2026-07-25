@@ -13,7 +13,7 @@ jobs:
   build-apk:
     name: Build installable Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout project
@@ -31,6 +31,16 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+
+      - name: Generate local debug/release signing keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Install JavaScript dependencies
         run: npm ci
