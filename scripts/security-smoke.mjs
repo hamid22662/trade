@@ -83,7 +83,7 @@ check('Native chart images use the app document directory', nativeImages.include
 check('Native image deletion is constrained to managed files', nativeImages.includes('isPersistedChartImage') && nativeImages.includes('idempotent: true'));
 check('Native backup restore uses the system document picker', nativeExport.includes("from 'expo-document-picker'") && nativeExport.includes('copyToCacheDirectory: true'));
 check('Portable backup still embeds image bytes', nativeBackup.includes('image_base64') && nativeBackup.includes('version: 2'));
-check('Runtime config uses only the same-origin static file', appConfigService.includes("APP_CONFIG_PATH = '/app-config.json'") && appConfigService.includes('fetch(APP_CONFIG_PATH'));
+check('Runtime config uses the same-origin static file on web (fixed host on native)', appConfigService.includes("APP_CONFIG_PATH = '/app-config.json'") && appConfigService.includes('isRunningInNativeApp()') && appConfigService.includes('fetch(resolveAppConfigUrl()'));
 check('Runtime config avoids stale cache and credentials', appConfigService.includes("cache: 'no-store'") && appConfigService.includes("credentials: 'omit'"));
 check('Runtime config keeps environment fallback', appConfigService.includes('return environmentRuntimeAppConfig') && runtimeAppConfig.includes('environmentRuntimeAppConfig'));
 check('Static config exposes only allowlisted public keys', JSON.stringify(Object.keys(staticAppConfig).sort()) === JSON.stringify(expectedConfigKeys));

@@ -14,10 +14,20 @@ export {
 
 export const APP_CONFIG_PATH = '/app-config.json';
 
-/** Reads the public, same-origin runtime configuration without credentials. */
+const NATIVE_APP_CONFIG_BASE_URL = 'https://hrey.siteamade.com';
+
+function isRunningInNativeApp() {
+  return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
+}
+
+function resolveAppConfigUrl() {
+  return isRunningInNativeApp() ? `${NATIVE_APP_CONFIG_BASE_URL}${APP_CONFIG_PATH}` : APP_CONFIG_PATH;
+}
+
+/** Reads the public runtime configuration (same-origin on web, fixed host on native) without credentials. */
 export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
   try {
-    const response = await fetch(APP_CONFIG_PATH, {
+    const response = await fetch(resolveAppConfigUrl(), {
       cache: 'no-store',
       credentials: 'omit',
       headers: { Accept: 'application/json' },
