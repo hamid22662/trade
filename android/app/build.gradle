@@ -97,6 +97,19 @@ android {
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
+    // A dedicated release keystore is optional: it's only supplied in CI (decoded from a
+    // GitHub Actions secret into RELEASE_KEYSTORE_PATH, see build-apk.yml) or locally via
+    // the same environment variables. Without it, release builds fall back to signing with
+    // the throwaway debug keystore, exactly like before - so local `./gradlew assembleRelease`
+    // keeps working with zero setup. Store submissions (Bazaar/Myket/Play) MUST use the real
+    // release keystore and that same keystore for every future update, or the store will
+    // reject the update as a signature mismatch.
+    def releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+    def releaseKeystorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+    def hasReleaseSigning = releaseKeystorePath && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -104,15 +117,24 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Caution! Store submissions must be signed with a real, permanent release
+            // keystore (see the comment above) - the debug keystore below is only a
+            // no-setup fallback for local/dev builds. See https://reactnative.dev/docs/signed-apk-android.
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

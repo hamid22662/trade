@@ -164,6 +164,13 @@ export default function TradeDetailScreen() {
         <InfoRow label={t('trade.stopLoss')} value={trade.stop_loss === null || trade.stop_loss === undefined ? '—' : String(trade.stop_loss)} />
         <InfoRow label={t('trade.takeProfit')} value={trade.take_profit === null || trade.take_profit === undefined ? '—' : String(trade.take_profit)} />
         <InfoRow label={trade.market === 'forex' ? t('trade.lotSize') : t('trade.quantity')} value={sizeValue} />
+        {trade.market === 'crypto' && trade.position_type ? (
+          <InfoRow
+            label={t('trade.positionType')}
+            value={trade.position_type === 'futures' && trade.leverage ? `${t('trade.futures')} · ${trade.leverage}x` : t('trade.spot')}
+            tone={trade.position_type === 'futures' ? 'warning' : 'default'}
+          />
+        ) : null}
         <InfoRow label={isRTL ? 'زمان ورود' : 'Open time'} value={safeDate(trade.open_time)} />
         <InfoRow label={isRTL ? 'زمان خروج' : 'Close time'} value={safeDate(trade.close_time)} />
       </Card>

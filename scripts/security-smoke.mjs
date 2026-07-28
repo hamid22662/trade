@@ -97,7 +97,11 @@ check('Supabase runtime and backend artifacts are removed', removedSupabasePaths
 check('Supabase npm dependency is removed', !packageJson.dependencies?.['@supabase/supabase-js'] && !packageJson.devDependencies?.['@supabase/supabase-js']);
 check('Frontend has no Supabase imports or keys', frontendSources.every(({ source }) => !/supabase|EXPO_PUBLIC_SUPABASE/i.test(source)));
 check('Environment example contains no removed secrets', !/SUPABASE|APP_CONFIG_ADMIN_PASSWORD/.test(environmentExample));
-check('APK workflow needs no secrets or environment configuration', !/supabase|secrets\.|EXPO_PUBLIC_|\benv:/i.test(apkWorkflow));
+check(
+  'APK workflow only uses secrets for optional release signing, nothing else',
+  !/supabase|EXPO_PUBLIC_/i.test(apkWorkflow)
+  && (apkWorkflow.match(/secrets\.\w+/g) ?? []).every((match) => /^secrets\.RELEASE_/.test(match)),
+);
 check('Android build script produces and verifies a real APK', packageJson.scripts?.['build:android-apk'] === 'node scripts/build-android-apk.mjs'
   && read('scripts/build-android-apk.mjs').includes('assembleRelease')
   && read('scripts/build-android-apk.mjs').includes('android-apk-smoke.mjs'));

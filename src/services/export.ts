@@ -17,6 +17,8 @@ const CSV_COLUMNS: Array<keyof Trade> = [
   'take_profit',
   'lot_size',
   'quantity',
+  'position_type',
+  'leverage',
   'risk_percent',
   'risk_amount',
   'pnl_gross',

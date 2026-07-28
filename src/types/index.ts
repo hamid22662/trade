@@ -1,6 +1,8 @@
 export type Language = 'fa' | 'en';
 export type ThemeMode = 'dark' | 'light';
 export type Market = 'forex' | 'crypto';
+/** Only meaningful for crypto trades. Forex trades leave this null/undefined. */
+export type PositionType = 'spot' | 'futures';
 export type Direction = 'BUY' | 'SELL';
 export type TradeStatus = 'OPEN' | 'CLOSED';
 export type Emotion = 'greed' | 'fear' | 'neutral' | 'confident' | 'rushed';
@@ -68,6 +70,10 @@ export interface Trade {
   contract_size: number;
   /** Calculated from the selected symbol and snapshotted when the trade opens. */
   pip_value_at_entry?: number | null;
+  /** Crypto only: 'spot' or 'futures'. Null/undefined for forex and for older trades. */
+  position_type?: PositionType | null;
+  /** Crypto futures only (e.g. 5, 10, 20). Null/undefined for spot and forex. */
+  leverage?: number | null;
   commission: number;
   swap_fee: number;
   funding_fee: number;
@@ -101,6 +107,8 @@ export interface NewTradeInput {
   pip_size: number;
   contract_size: number;
   pip_value_at_entry?: number;
+  position_type?: PositionType | null;
+  leverage?: number | null;
   open_time: string;
   strategy?: string;
   emotion_entry?: Emotion;
@@ -139,6 +147,8 @@ export interface ImportedTradeInput {
   pip_size: number;
   contract_size: number;
   pip_value_at_entry?: number | null;
+  position_type?: PositionType | null;
+  leverage?: number | null;
   commission?: number;
   swap_fee?: number;
   funding_fee?: number;

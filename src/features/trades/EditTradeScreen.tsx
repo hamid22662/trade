@@ -3,15 +3,16 @@ import { Text, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getTrade, updateTrade } from '@/db/repositories';
-import { Direction, Emotion, Market, Trade } from '@/types';
+import { Direction, Emotion, Market, PositionType, Trade } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { useFeedback } from '@/components/feedback';
 import { BackButton, Badge, Button, Card, ChipGroup, Field, HeroCard, MiniKpi, ResponsiveRow, Screen, SectionHeading, Segmented, Title } from '@/components/ui';
-import { calculateClosedTrade, calculatePositionSize, calculateRr, formatMoney, formatNumber } from '@/services/calculations';
+import { calculateClosedTrade, calculateMarginRequired, calculatePositionSize, calculateRr, estimateLiquidationDistancePercent, formatMoney, formatNumber } from '@/services/calculations';
 import { getRMultiple, formatRMultiple } from '@/services/tradeMetrics';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 const emotions: Emotion[] = ['greed', 'fear', 'neutral', 'confident', 'rushed'];
+const LEVERAGE_PRESETS = [2, 3, 5, 10, 20, 50, 100];
 const toNumber = (value: string) => {
   const number = Number(String(value).replace(',', '.').replace(/[^0-9.-]/g, ''));
   return Number.isFinite(number) ? number : 0;
@@ -35,6 +36,8 @@ export default function EditTradeScreen() {
   const [exit, setExit] = useState('');
   const [lot, setLot] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [positionType, setPositionType] = useState<PositionType>('spot');
+  const [leverage, setLeverage] = useState('10');
   const [risk, setRisk] = useState('');
   const [balance, setBalance] = useState('');
   const [strategy, setStrategy] = useState('');
@@ -59,6 +62,8 @@ export default function EditTradeScreen() {
     setExit(item.exit_price === null || item.exit_price === undefined ? '' : String(item.exit_price));
     setLot(item.lot_size === null || item.lot_size === undefined ? '' : String(item.lot_size));
     setQuantity(item.quantity === null || item.quantity === undefined ? '' : String(item.quantity));
+    setPositionType(item.position_type ?? 'spot');
+    setLeverage(item.leverage === null || item.leverage === undefined ? '10' : String(item.leverage));
     setRisk(item.risk_percent === null || item.risk_percent === undefined ? '' : String(item.risk_percent));
     setBalance(item.account_balance === null || item.account_balance === undefined ? '' : String(item.account_balance));
     setStrategy(item.strategy ?? '');
@@ -88,6 +93,10 @@ export default function EditTradeScreen() {
   const balanceValue = toNumber(balance);
   const lotValue = toNumber(lot);
   const quantityValue = toNumber(quantity);
+  const leverageValue = toNumber(leverage);
+  const isLeveraged = market === 'crypto' && positionType === 'futures';
+  const marginRequired = isLeveraged ? calculateMarginRequired(quantityValue, entryValue, leverageValue) : 0;
+  const liquidationDistance = isLeveraged ? estimateLiquidationDistancePercent(leverageValue) : 0;
   const commissionValue = toNumber(commission);
   const swapValue = toNumber(swap);
   const fundingValue = toNumber(funding);
@@ -124,6 +133,10 @@ export default function EditTradeScreen() {
     if (trade.market === 'crypto' && !quantity && suggested > 0) setQuantity(suggested.toFixed(6));
   }, [trade, sizing.size, risk, balance, lot, quantity]);
 
+  useEffect(() => {
+    if (market !== 'crypto') setPositionType('spot');
+  }, [market]);
+
   if (!trade) return <Screen><BackButton onPress={() => navigation.goBack()} /><Title>{t('trade.details')}</Title></Screen>;
 
   const isClosed = trade.status === 'CLOSED';
@@ -151,6 +164,8 @@ export default function EditTradeScreen() {
         take_profit: tpValue || null,
         lot_size: market === 'forex' ? lotValue : null,
         quantity: market === 'crypto' ? quantityValue : null,
+        position_type: market === 'crypto' ? positionType : null,
+        leverage: isLeveraged ? leverageValue : null,
         risk_percent: riskValue || null,
         account_balance: balanceValue || null,
         risk_amount: sizing.riskAmount || trade.risk_amount || null,
@@ -196,6 +211,18 @@ export default function EditTradeScreen() {
       <Field label={t('trade.symbol')} value={symbol} onChangeText={(value) => setSymbol(value.toUpperCase())} autoCapitalize="characters" icon="hash" />
       <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign }}>{t('trade.direction')}</Text>
       <Segmented value={direction} onChange={(value) => setDirection(value as Direction)} options={[{ value: 'BUY', label: t('common.buy') }, { value: 'SELL', label: t('common.sell') }]} />
+      {market === 'crypto' ? (
+        <View style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign }}>{t('trade.positionType')}</Text>
+          <Segmented value={positionType} onChange={(value) => setPositionType(value as PositionType)} options={[{ value: 'spot', label: t('trade.spot') }, { value: 'futures', label: t('trade.futures') }]} />
+          {isLeveraged ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign }}>{t('trade.leverage')}</Text>
+              <ChipGroup value={leverage} onChange={setLeverage} options={LEVERAGE_PRESETS.map((value) => ({ value: String(value), label: `${value}x` }))} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Card>
 
     <Card>
@@ -213,6 +240,18 @@ export default function EditTradeScreen() {
         <View style={{ flex: isPhone ? 1 : 0.48, minWidth: isPhone ? 0 : 170 }}><Field label={t('trade.riskPercent')} value={risk} onChangeText={setRisk} keyboardType="decimal-pad" suffix="%" icon="percent" /></View>
       </ResponsiveRow>
       <Field label={market === 'forex' ? t('trade.lotSize') : t('trade.quantity')} value={market === 'forex' ? lot : quantity} onChangeText={market === 'forex' ? setLot : setQuantity} keyboardType="decimal-pad" suffix={market === 'forex' ? 'Lot' : 'Qty'} icon="box" />
+      {isLeveraged ? (
+        <View style={{ marginTop: 12, gap: 10 }}>
+          <View style={{ flexDirection: rowDirection, flexWrap: 'wrap', gap: 9 }}>
+            <MiniKpi label={t('trade.marginRequired')} value={marginRequired ? formatMoney(marginRequired, currency).replace(/^\+/, '') : '—'} tone="info" />
+          </View>
+          {liquidationDistance ? (
+            <Text style={{ color: theme.colors.warning, fontSize: 11, fontWeight: '800', lineHeight: 17, textAlign }}>
+              {t('trade.liquidationWarning', { leverage: leverageValue, percent: formatNumber(liquidationDistance, 1) })}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </Card>
 
     {isClosed ? <Card>

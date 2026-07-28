@@ -4,14 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { getSymbols } from '@/db/repositories';
 import { useApp } from '@/context/AppContext';
 import { Badge, Card, ChipGroup, Field, HeroCard, MiniKpi, ResponsiveRow, Screen, SectionHeading, Segmented, Stat, Title } from '@/components/ui';
-import { calculatePositionSize, calculateRr, calculateSlDistance, formatNumber, needsEntryPriceForPipValue } from '@/services/calculations';
-import { Direction, Market, SymbolRow } from '@/types';
+import { calculateMarginRequired, calculatePositionSize, calculatePriceDistancePercent, calculateRr, calculateSlDistance, estimateLiquidationDistancePercent, formatNumber, needsEntryPriceForPipValue } from '@/services/calculations';
+import { Direction, Market, PositionType, SymbolRow } from '@/types';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 const toInputNumber = (value: string) => {
   const number = Number(String(value).replace(',', '.').replace(/[^0-9.-]/g, ''));
   return Number.isFinite(number) ? number : 0;
 };
+
+const LEVERAGE_PRESETS = [2, 3, 5, 10, 20, 50, 100];
 
 export default function CalculatorScreen() {
   const { t } = useTranslation();
@@ -28,6 +30,8 @@ export default function CalculatorScreen() {
   const [sl, setSl] = useState('');
   const [tp, setTp] = useState('');
   const [lotSize, setLotSize] = useState('1');
+  const [positionType, setPositionType] = useState<PositionType>('spot');
+  const [leverage, setLeverage] = useState('10');
 
   useEffect(() => {
     getSymbols(market).then((rows) => {
@@ -45,6 +49,10 @@ export default function CalculatorScreen() {
     if (market === 'crypto' && tab === 'pip') setTab('lot');
   }, [market, tab]);
 
+  useEffect(() => {
+    if (market !== 'crypto') setPositionType('spot');
+  }, [market]);
+
   const selectedSymbol = symbols.find((item) => item.symbol === symbol) ?? symbols[0];
   const pipSize = selectedSymbol?.pip_size ?? 0.0001;
   const contractSize = selectedSymbol?.contract_size ?? 100000;
@@ -60,8 +68,15 @@ export default function CalculatorScreen() {
   }), [market, balance, risk, entry, sl, pipSize, contractSize, selectedSymbol?.quote_currency]);
 
   const rr = calculateRr(direction, toInputNumber(entry), toInputNumber(sl), toInputNumber(tp));
-  const distance = calculateSlDistance(toInputNumber(entry), toInputNumber(sl), pipSize);
-  const reward = calculateSlDistance(toInputNumber(entry), toInputNumber(tp), pipSize);
+  const distance = market === 'crypto'
+    ? calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(sl))
+    : calculateSlDistance(toInputNumber(entry), toInputNumber(sl), pipSize);
+  const reward = market === 'crypto'
+    ? calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(tp))
+    : calculateSlDistance(toInputNumber(entry), toInputNumber(tp), pipSize);
+  const distanceLabel = (value: number) => market === 'crypto' ? `${formatNumber(value, 2)}%` : `${formatNumber(value, 1)} ${t('trade.pips')}`;
+  const leverageValue = toInputNumber(leverage);
+  const isLeveraged = market === 'crypto' && positionType === 'futures';
   const rrValue = rr ?? 0;
   const assessment = rr === null
     ? t('calculator.enterLevels')
@@ -69,6 +84,8 @@ export default function CalculatorScreen() {
   const symbolName = selectedSymbol?.symbol ?? '—';
   const pipValueReady = market !== 'forex' || result.pipValue > 0;
   const pipValueHint = needsEntryPriceForPipValue(selectedSymbol?.quote_currency) ? t('trade.pipValueNeedsEntry') : t('trade.pipValueUnavailable');
+  const marginRequired = isLeveraged && pipValueReady ? calculateMarginRequired(result.size, toInputNumber(entry), leverageValue) : 0;
+  const liquidationDistance = isLeveraged ? estimateLiquidationDistancePercent(leverageValue) : 0;
   const heroTone = tab === 'rr'
     ? rr === null ? 'primary' : rrValue >= 1.5 ? 'success' : rrValue < 1 ? 'danger' : 'warning'
     : tab === 'lot'
@@ -97,7 +114,7 @@ export default function CalculatorScreen() {
       tone={heroTone}
       footer={(
         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
-          <MiniKpi label={t('calculator.slDistance')} value={market === 'forex' ? `${formatNumber(result.distance, 1)} ${t('trade.pips')}` : formatNumber(result.distance, 4)} tone="warning" />
+          <MiniKpi label={t('calculator.slDistance')} value={market === 'forex' ? `${formatNumber(result.distance, 1)} ${t('trade.pips')}` : `${formatNumber(calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(sl)), 2)}%`} tone="warning" />
           <MiniKpi label={t('trade.pipPoint')} value={formatNumber(pipSize, 6)} tone="info" />
           <MiniKpi label={t('calculator.pipValue')} value={pipValueReady ? `${formatNumber(result.pipValue, 4)}` : '—'} tone={pipValueReady ? 'primary' : 'warning'} />
         </View>
@@ -111,6 +128,18 @@ export default function CalculatorScreen() {
       <ChipGroup value={symbol} onChange={setSymbol} options={symbols.map((item) => ({ value: item.symbol, label: item.symbol }))} />
       <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8, flexWrap: 'wrap', marginTop: 14 }}><Badge label={symbolName} tone="info" icon="activity" /><Badge label={market.toUpperCase()} tone="default" /></View>
       {market === 'forex' && !pipValueReady ? <Text style={{ color: theme.colors.warning, fontSize: 12, fontWeight: '800', lineHeight: 19, marginTop: 12, textAlign: isRTL ? 'right' : 'left' }}>{pipValueHint}</Text> : null}
+      {market === 'crypto' ? (
+        <View style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign: isRTL ? 'right' : 'left' }}>{t('trade.positionType')}</Text>
+          <Segmented value={positionType} onChange={(value) => setPositionType(value as PositionType)} options={[{ value: 'spot', label: t('trade.spot') }, { value: 'futures', label: t('trade.futures') }]} />
+          {isLeveraged ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign: isRTL ? 'right' : 'left' }}>{t('trade.leverage')}</Text>
+              <ChipGroup value={leverage} onChange={setLeverage} options={LEVERAGE_PRESETS.map((value) => ({ value: String(value), label: `${value}x` }))} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Card>
 
     {tab !== 'pip' ? <Card>
@@ -134,16 +163,22 @@ export default function CalculatorScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
         <Stat label={market === 'forex' ? t('calculator.suggestedLot') : t('calculator.suggestedQty')} value={pipValueReady ? formatNumber(result.size, 4) : '—'} tone={pipValueReady ? 'info' : 'warning'} />
         <Stat label={t('trade.riskAmount')} value={`${currency} ${formatNumber(result.riskAmount, 2)}`} tone="warning" />
-        <Stat label={t('calculator.slDistance')} value={market === 'forex' ? `${formatNumber(result.distance, 1)} ${t('trade.pips')}` : formatNumber(result.distance, 4)} />
+        <Stat label={t('calculator.slDistance')} value={market === 'forex' ? `${formatNumber(result.distance, 1)} ${t('trade.pips')}` : `${formatNumber(calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(sl)), 2)}%`} />
         {market === 'forex' ? <Stat label={t('calculator.pipValue')} value={pipValueReady ? `${currency} ${formatNumber(result.pipValue, 4)}` : '—'} tone={pipValueReady ? 'primary' : 'warning'} /> : null}
+        {isLeveraged ? <Stat label={t('trade.marginRequired')} value={marginRequired ? `${currency} ${formatNumber(marginRequired, 2)}` : '—'} tone="info" /> : null}
       </View>
+      {isLeveraged && liquidationDistance ? (
+        <Text style={{ color: theme.colors.warning, fontSize: 11, fontWeight: '800', lineHeight: 17, marginTop: 12, textAlign: isRTL ? 'right' : 'left' }}>
+          {t('trade.liquidationWarning', { leverage: leverageValue, percent: formatNumber(liquidationDistance, 1) })}
+        </Text>
+      ) : null}
     </Card> : null}
 
     {tab === 'rr' ? <Card>
       <SectionHeading title={t('calculator.result')} icon="bar-chart-2" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-        <Stat label={t('calculator.risk')} value={`${formatNumber(distance, 1)} ${t('trade.pips')}`} />
-        <Stat label={t('calculator.reward')} value={`${formatNumber(reward, 1)} ${t('trade.pips')}`} />
+        <Stat label={t('calculator.risk')} value={distanceLabel(distance)} />
+        <Stat label={t('calculator.reward')} value={distanceLabel(reward)} />
         <Stat label={t('trade.rr')} value={rr === null ? '—' : `1:${formatNumber(rr, 2)}`} tone="info" />
         <Stat label={t('calculator.assessment')} value={assessment} tone={rr === null ? 'default' : rrValue >= 1.5 ? 'success' : rrValue < 1 ? 'danger' : 'warning'} />
       </View>

@@ -30,7 +30,6 @@
     "@react-navigation/bottom-tabs": "^7.18.7",
     "@react-navigation/native": "^7.3.7",
     "@react-navigation/native-stack": "^7.17.9",
-    "check": "^1.0.0",
     "dexie": "^4.4.4",
     "expo": "~57.0.2",
     "expo-document-picker": "~57.0.1",
@@ -43,7 +42,6 @@
     "expo-sqlite": "~57.0.1",
     "expo-status-bar": "~57.0.0",
     "i18next": "^26.3.4",
-    "npm": "^12.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.8",
@@ -56,7 +54,6 @@
     "react-native-url-polyfill": "^4.0.0",
     "react-native-web": "^0.21.2",
     "react-native-worklets": "0.10.0",
-    "run": "^1.5.0",
     "victory-native": "^36.9.2"
   },
   "devDependencies": {

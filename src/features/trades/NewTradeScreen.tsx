@@ -4,16 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { createTrade, getChecklist, getSettings, getStrategies, getSymbols, listTrades } from '@/db/repositories';
-import { ChecklistItem, Emotion, Market, StrategyRow, SymbolRow, Trade } from '@/types';
+import { ChecklistItem, Emotion, Market, PositionType, StrategyRow, SymbolRow, Trade } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { useFeedback } from '@/components/feedback';
 import { BackButton, Badge, Button, Card, ChipGroup, CollapsibleCard, Empty, Field, HeroCard, InfoRow, MiniKpi, MetricHero, ModalCloseButton, ResponsiveRow, Screen, SectionHeading, Segmented, Title } from '@/components/ui';
-import { calculatePositionSize, calculateRr, formatMoney, formatNumber, needsEntryPriceForPipValue } from '@/services/calculations';
+import { calculateMarginRequired, calculatePositionSize, calculatePriceDistancePercent, calculateRr, estimateLiquidationDistancePercent, formatMoney, formatNumber, needsEntryPriceForPipValue } from '@/services/calculations';
 import { MAX_TRADE_IMAGES, pickAndPersistChartImage } from '@/services/images';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 const emotions: Emotion[] = ['greed', 'fear', 'neutral', 'confident', 'rushed'];
 const DRAFT_KEY_PREFIX = 'tradelog:new_trade_draft:v1';
+const LEVERAGE_PRESETS = [2, 3, 5, 10, 20, 50, 100];
 
 type DisplayMode = 'simple' | 'pro';
 type SymbolPickerFilter = Market | 'all';
@@ -35,6 +36,8 @@ type DraftState = {
   checked: Record<string, number>;
   images: string[];
   updatedAt: string;
+  positionType: PositionType;
+  leverage: string;
 };
 
 const toInputNumber = (value: string) => {
@@ -84,6 +87,8 @@ export default function NewTradeScreen() {
   const [tp, setTp] = useState('');
   const [lot, setLot] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [positionType, setPositionType] = useState<PositionType>('spot');
+  const [leverage, setLeverage] = useState('10');
   const [risk, setRisk] = useState(String(defaultRisk));
   const [balance, setBalance] = useState(String(accountBalance));
   const [strategy, setStrategy] = useState('');
@@ -132,6 +137,10 @@ export default function NewTradeScreen() {
   }, [market, symbol]);
 
   useEffect(() => {
+    if (market !== 'crypto') setPositionType('spot');
+  }, [market]);
+
+  useEffect(() => {
     const cloneTrade = route.params?.cloneTrade as Partial<Trade> | undefined;
     if (!cloneTrade?.id || clonedTradeRef.current === cloneTrade.id) return;
     clonedTradeRef.current = cloneTrade.id;
@@ -145,6 +154,8 @@ export default function NewTradeScreen() {
     setTp(cloneTrade.take_profit ? String(cloneTrade.take_profit) : '');
     setLot(cloneTrade.lot_size ? String(cloneTrade.lot_size) : '');
     setQuantity(cloneTrade.quantity ? String(cloneTrade.quantity) : '');
+    setPositionType(cloneTrade.position_type ?? 'spot');
+    setLeverage(cloneTrade.leverage ? String(cloneTrade.leverage) : '10');
     setRisk(cloneTrade.risk_percent ? String(cloneTrade.risk_percent) : String(defaultRisk));
     setBalance(cloneTrade.account_balance ? String(cloneTrade.account_balance) : String(accountBalance));
     setStrategy(cloneTrade.strategy ?? '');
@@ -175,6 +186,8 @@ export default function NewTradeScreen() {
   const riskValue = toInputNumber(risk);
   const balanceValue = toInputNumber(balance);
   const manualAmount = market === 'forex' ? toInputNumber(lot) : toInputNumber(quantity);
+  const leverageValue = toInputNumber(leverage);
+  const isLeveraged = market === 'crypto' && positionType === 'futures';
   const rr = calculateRr(direction, entryValue, slValue, tpValue);
   const sizing = useMemo(() => calculatePositionSize({
     market,
@@ -191,8 +204,14 @@ export default function NewTradeScreen() {
   const hasPipValue = market !== 'forex' || sizing.pipValue > 0;
   const suggestedAmount = sizing.size;
   const amountForSave = manualAmount > 0 ? manualAmount : suggestedAmount;
-  const slDistance = selectedSymbol?.pip_size ? Math.abs(entryValue - slValue) / selectedSymbol.pip_size : 0;
-  const tpDistance = selectedSymbol?.pip_size ? Math.abs(tpValue - entryValue) / selectedSymbol.pip_size : 0;
+  const slDistance = market === 'crypto'
+    ? calculatePriceDistancePercent(entryValue, slValue)
+    : (selectedSymbol?.pip_size ? Math.abs(entryValue - slValue) / selectedSymbol.pip_size : 0);
+  const tpDistance = market === 'crypto'
+    ? calculatePriceDistancePercent(entryValue, tpValue)
+    : (selectedSymbol?.pip_size ? Math.abs(tpValue - entryValue) / selectedSymbol.pip_size : 0);
+  const marginRequired = isLeveraged ? calculateMarginRequired(amountForSave, entryValue, leverageValue) : 0;
+  const liquidationDistance = isLeveraged ? estimateLiquidationDistancePercent(leverageValue) : 0;
   const rewardAmount = rr && rr > 0 ? sizing.riskAmount * rr : 0;
   const checklistDone = Object.values(checked).filter((value) => value === 1).length;
   const rrTone = rr === null ? 'default' : rr >= 1.5 ? 'success' : rr < 1 ? 'danger' : 'warning';
@@ -201,7 +220,7 @@ export default function NewTradeScreen() {
   const rowDirection = isRTL ? 'row-reverse' as const : 'row' as const;
 
   const levelErrors = useMemo(() => {
-    const errors: Partial<Record<'entry' | 'sl' | 'tp' | 'risk' | 'balance' | 'amount', string>> = {};
+    const errors: Partial<Record<'entry' | 'sl' | 'tp' | 'risk' | 'balance' | 'amount' | 'leverage', string>> = {};
     if (entry && entryValue <= 0) errors.entry = isRTL ? 'قیمت ورود باید بیشتر از صفر باشد.' : 'Entry must be greater than zero.';
     if (sl && entryValue > 0) {
       const badSl = direction === 'BUY' ? slValue >= entryValue : slValue <= entryValue;
@@ -218,8 +237,9 @@ export default function NewTradeScreen() {
     if (risk && riskValue <= 0) errors.risk = isRTL ? 'ریسک باید بیشتر از صفر باشد.' : 'Risk must be greater than zero.';
     if (balance && balanceValue <= 0) errors.balance = isRTL ? 'موجودی باید بیشتر از صفر باشد.' : 'Balance must be greater than zero.';
     if (isPro && (market === 'forex' ? lot : quantity) && manualAmount <= 0) errors.amount = isRTL ? 'حجم باید بیشتر از صفر باشد.' : 'Size must be greater than zero.';
+    if (isLeveraged && leverageValue <= 1) errors.leverage = isRTL ? 'لورج باید بیشتر از ۱ باشد.' : 'Leverage must be greater than 1.';
     return errors;
-  }, [entry, entryValue, sl, slValue, tp, tpValue, risk, riskValue, balance, balanceValue, direction, isRTL, isPro, market, lot, quantity, manualAmount]);
+  }, [entry, entryValue, sl, slValue, tp, tpValue, risk, riskValue, balance, balanceValue, direction, isRTL, isPro, market, lot, quantity, manualAmount, isLeveraged, leverageValue]);
 
   const previewWarnings = useMemo(() => {
     const warnings: string[] = [];
@@ -232,7 +252,7 @@ export default function NewTradeScreen() {
     return warnings;
   }, [selectedSymbol, entryValue, slValue, levelErrors.sl, levelErrors.tp, market, hasPipValue, requiresEntryForPipValue, t, isRTL]);
 
-  const canSave = Boolean(selectedSymbol && entryValue > 0 && amountForSave > 0 && !levelErrors.entry && !levelErrors.sl && !levelErrors.tp && !levelErrors.risk && !levelErrors.balance && (market !== 'forex' || hasPipValue));
+  const canSave = Boolean(selectedSymbol && entryValue > 0 && amountForSave > 0 && !levelErrors.entry && !levelErrors.sl && !levelErrors.tp && !levelErrors.risk && !levelErrors.balance && !levelErrors.leverage && (market !== 'forex' || hasPipValue));
   const saveButtonTitle = saving
     ? (isRTL ? 'در حال ثبت…' : 'Saving…')
     : !canSave
@@ -243,12 +263,12 @@ export default function NewTradeScreen() {
 
   useEffect(() => {
     if (!draftReadyRef.current || draftCandidate || isCloned) return;
-    const draft: DraftState = { market, symbol, direction, entry, sl, tp, lot, quantity, risk, balance, strategy, emotion, setup, checked, images, updatedAt: new Date().toISOString() };
+    const draft: DraftState = { market, symbol, direction, entry, sl, tp, lot, quantity, risk, balance, strategy, emotion, setup, checked, images, updatedAt: new Date().toISOString(), positionType, leverage };
     const task = hasMeaningfulDraft(draft)
       ? AsyncStorage.setItem(draftKey, JSON.stringify(draft))
       : AsyncStorage.removeItem(draftKey);
     task.catch(() => undefined);
-  }, [market, symbol, direction, entry, sl, tp, lot, quantity, risk, balance, strategy, emotion, setup, checked, images, draftCandidate, isCloned, draftKey]);
+  }, [market, symbol, direction, entry, sl, tp, lot, quantity, risk, balance, strategy, emotion, setup, checked, images, draftCandidate, isCloned, draftKey, positionType, leverage]);
 
   const optionLabel = (item: ChecklistItem) => isRTL ? item.label_fa : item.label_en;
 
@@ -272,6 +292,8 @@ export default function NewTradeScreen() {
     setTp(draft.tp);
     setLot(draft.lot);
     setQuantity(draft.quantity);
+    setPositionType(draft.positionType ?? 'spot');
+    setLeverage(draft.leverage ?? '10');
     setRisk(draft.risk);
     setBalance(draft.balance);
     setStrategy(draft.strategy);
@@ -293,6 +315,8 @@ export default function NewTradeScreen() {
     setTp('');
     setLot('');
     setQuantity('');
+    setPositionType('spot');
+    setLeverage('10');
     setSetup('');
     setChecked({});
     setImages([]);
@@ -319,7 +343,7 @@ export default function NewTradeScreen() {
       showToast({ title: t('common.checkFields'), message: t('trade.pipValueNeedsEntry'), tone: 'warning' });
       return;
     }
-    if (levelErrors.entry || levelErrors.sl || levelErrors.tp || levelErrors.risk || levelErrors.balance || levelErrors.amount) {
+    if (levelErrors.entry || levelErrors.sl || levelErrors.tp || levelErrors.risk || levelErrors.balance || levelErrors.amount || levelErrors.leverage) {
       showToast({ title: t('common.checkFields'), message: t('trade.invalidLevels'), tone: 'warning' });
       return;
     }
@@ -343,6 +367,8 @@ export default function NewTradeScreen() {
         pip_size: selectedSymbol.pip_size,
         contract_size: selectedSymbol.contract_size,
         pip_value_at_entry: market === 'forex' ? sizing.pipValue : undefined,
+        position_type: market === 'crypto' ? positionType : null,
+        leverage: isLeveraged ? leverageValue : null,
         open_time: new Date().toISOString(),
         strategy: strategy || undefined,
         emotion_entry: isPro ? emotion : 'neutral',
@@ -510,6 +536,19 @@ export default function NewTradeScreen() {
       ) : null}
       <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginTop: 16, marginBottom: 8, textAlign }}>{t('trade.direction')}</Text>
       <Segmented value={direction} onChange={(value) => setDirection(value as 'BUY' | 'SELL')} options={[{ value: 'BUY', label: t('common.buy') }, { value: 'SELL', label: t('common.sell') }]} />
+      {market === 'crypto' ? (
+        <View style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign }}>{t('trade.positionType')}</Text>
+          <Segmented value={positionType} onChange={(value) => setPositionType(value as PositionType)} options={[{ value: 'spot', label: t('trade.spot') }, { value: 'futures', label: t('trade.futures') }]} />
+          {isLeveraged ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign }}>{t('trade.leverage')}</Text>
+              <ChipGroup value={leverage} onChange={setLeverage} options={LEVERAGE_PRESETS.map((value) => ({ value: String(value), label: `${value}x` }))} />
+              {levelErrors.leverage ? <Text style={{ color: theme.colors.danger, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign }}>{levelErrors.leverage}</Text> : null}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Card>
 
     <Card>
@@ -519,8 +558,8 @@ export default function NewTradeScreen() {
       <Field label={t('trade.takeProfit')} value={tp} onChangeText={setTp} keyboardType="decimal-pad" icon="target" error={levelErrors.tp} />
       <View style={{ borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundElevated, padding: 14, gap: 12 }}>
         <View style={{ flexDirection: rowDirection, flexWrap: 'wrap', gap: 9 }}>
-          <MiniKpi label={isRTL ? 'فاصله SL' : 'SL distance'} value={slDistance ? `${formatNumber(slDistance, market === 'forex' ? 1 : 2)} ${market === 'forex' ? 'pips' : 'pts'}` : '—'} tone="danger" />
-          <MiniKpi label={isRTL ? 'فاصله TP' : 'TP distance'} value={tpDistance ? `${formatNumber(tpDistance, market === 'forex' ? 1 : 2)} ${market === 'forex' ? 'pips' : 'pts'}` : '—'} tone="success" />
+          <MiniKpi label={isRTL ? 'فاصله SL' : 'SL distance'} value={slDistance ? (market === 'forex' ? `${formatNumber(slDistance, 1)} pips` : `${formatNumber(slDistance, 2)}%`) : '—'} tone="danger" />
+          <MiniKpi label={isRTL ? 'فاصله TP' : 'TP distance'} value={tpDistance ? (market === 'forex' ? `${formatNumber(tpDistance, 1)} pips` : `${formatNumber(tpDistance, 2)}%`) : '—'} tone="success" />
           <MiniKpi label="R/R" value={rr === null ? '—' : `1:${formatNumber(rr, 2)}`} tone={rrTone} />
         </View>
         <View style={{ gap: 8 }}>
@@ -554,6 +593,18 @@ export default function NewTradeScreen() {
         caption={`${t('trade.riskAmount')}: ${formatMoney(sizing.riskAmount, currency).replace(/^\+/, '')}`}
         tone="info"
       />
+      {isLeveraged ? (
+        <View style={{ marginTop: 12, gap: 10 }}>
+          <View style={{ flexDirection: rowDirection, flexWrap: 'wrap', gap: 9 }}>
+            <MiniKpi label={t('trade.marginRequired')} value={marginRequired ? formatMoney(marginRequired, currency).replace(/^\+/, '') : '—'} tone="info" />
+          </View>
+          {liquidationDistance ? (
+            <Text style={{ color: theme.colors.warning, fontSize: 11, fontWeight: '800', lineHeight: 17, textAlign }}>
+              {t('trade.liquidationWarning', { leverage: leverageValue, percent: formatNumber(liquidationDistance, 1) })}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {isPro ? (
         <View style={{ marginTop: 12 }}>
           <Field

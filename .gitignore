@@ -2,6 +2,7 @@ node_modules/
 .expo/
 .android-export/
 dist/
+dist_fixed*.zip
 *.jks
 *.keystore
 .env
@@ -10,4 +11,3 @@ backups/
 # Local signing credentials - never upload
 credentials.json
 android/keystores/
-dist_fixed*.zip

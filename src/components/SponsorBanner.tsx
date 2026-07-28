@@ -42,6 +42,10 @@ export default function SponsorBanner() {
       .then((config) => {
         if (!active) return;
         if (!isRenderableSponsorBanner(config.sponsorBanner)) return;
+        // Render the banner directly and let the <Image> element's own onLoad/onError
+        // below decide whether it stays visible. A separate Image.prefetch() pre-check
+        // was tried here before, but on web it can silently hang or reject even when the
+        // same URL loads fine as a normal <img>, which hid a perfectly valid banner.
         setBanner(config.sponsorBanner);
       })
       .catch(() => undefined);

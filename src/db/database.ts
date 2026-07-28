@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS trades (
   pip_size REAL NOT NULL,
   contract_size REAL NOT NULL,
   pip_value_at_entry REAL,
+  position_type TEXT CHECK (position_type IN ('spot', 'futures')),
+  leverage REAL,
   commission REAL NOT NULL DEFAULT 0,
   swap_fee REAL NOT NULL DEFAULT 0,
   funding_fee REAL NOT NULL DEFAULT 0,
@@ -197,6 +199,8 @@ async function ensureSchemaMigrations(db: SQLite.SQLiteDatabase) {
     ['exit_notes', 'ALTER TABLE trades ADD COLUMN exit_notes TEXT'],
     ['lesson_learned', 'ALTER TABLE trades ADD COLUMN lesson_learned TEXT'],
     ['checklist', "ALTER TABLE trades ADD COLUMN checklist TEXT NOT NULL DEFAULT '{}'"],
+    ['position_type', 'ALTER TABLE trades ADD COLUMN position_type TEXT'],
+    ['leverage', 'ALTER TABLE trades ADD COLUMN leverage REAL'],
   ];
   for (const [column, sql] of tradeMigrations) {
     if (!hasTradeColumn(column)) await db.execAsync(sql);

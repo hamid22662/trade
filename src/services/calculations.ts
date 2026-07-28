@@ -112,6 +112,42 @@ export function calculateSlDistance(entry?: number | null, stopLoss?: number | n
 }
 
 /**
+ * Distance between a reference price and a target price, expressed as a percentage of the
+ * reference price. Used for crypto instead of pips/points, which only make sense for forex.
+ */
+export function calculatePriceDistancePercent(reference?: number | null, target?: number | null): number {
+  if (!isPositiveNumber(reference) || !isPositiveNumber(target)) return 0;
+  return (Math.abs(reference - target) / reference) * 100;
+}
+
+/**
+ * Margin required to open a leveraged futures position.
+ * margin = (quantity * entryPrice) / leverage
+ * Spot positions (or leverage of 1) require the full notional value as margin.
+ */
+export function calculateMarginRequired(
+  quantity?: number | null,
+  entryPrice?: number | null,
+  leverage?: number | null,
+): number {
+  if (!isPositiveNumber(quantity) || !isPositiveNumber(entryPrice)) return 0;
+  const effectiveLeverage = isPositiveNumber(leverage) ? leverage : 1;
+  return (quantity * entryPrice) / effectiveLeverage;
+}
+
+/**
+ * Simplified/approximate distance (as a percentage of entry price) an adverse price move needs to
+ * travel to wipe out the margin on a leveraged position, i.e. ~100 / leverage.
+ *
+ * This ignores maintenance margin requirements, funding fees, and exchange-specific liquidation
+ * mechanics, so it should be presented as a rough warning, not an exact liquidation price.
+ */
+export function estimateLiquidationDistancePercent(leverage?: number | null): number {
+  if (!isPositiveNumber(leverage) || leverage <= 1) return 0;
+  return 100 / leverage;
+}
+
+/**
  * USD value of one pip / point at exactly 1.00 lot, derived from the symbol table.
  *
  * EURUSD: 0.0001 × 100000 = $10

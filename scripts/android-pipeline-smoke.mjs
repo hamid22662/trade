@@ -28,8 +28,42 @@ assert(builder.includes("'assembleRelease', '--no-daemon'"), 'APK builder does n
 assert(builder.includes('android-apk-smoke.mjs'), 'APK builder does not verify its output.');
 assert(workflow.includes('run: npm run build:android-apk'), 'GitHub workflow bypasses the verified APK builder.');
 assert(workflow.includes('app-release.apk') && workflow.includes('if-no-files-found: error'), 'GitHub artifact is not fail-closed.');
-assert(!/supabase|secrets\.|EXPO_PUBLIC_/i.test(buildSources), 'APK build path still references application secrets or environment values.');
-assert(!/\benv:/i.test(workflow), 'GitHub APK workflow still injects application environment values.');
+
+// Secrets are allowed, but only for the optional release-signing keystore (Myket/Bazaar
+// submissions need a permanent signature). Anything else - Supabase keys, EXPO_PUBLIC_ vars,
+// or a non-RELEASE_ secret - stays forbidden.
+assert(
+  !/supabase|EXPO_PUBLIC_/i.test(buildSources)
+  && (buildSources.match(/secrets\.\w+/g) ?? []).every((match) => /^secrets\.RELEASE_/.test(match)),
+  'APK build path still references application secrets or environment values.',
+);
+
+function extractEnvVarNames(yaml) {
+  const lines = yaml.split('\n');
+  const names = [];
+  let inEnv = false;
+  let envIndent = 0;
+  for (const line of lines) {
+    const envHeader = line.match(/^(\s*)env:\s*$/);
+    if (envHeader) {
+      inEnv = true;
+      envIndent = envHeader[1].length;
+      continue;
+    }
+    if (!inEnv) continue;
+    if (!line.trim()) continue;
+    const indent = line.match(/^(\s*)/)[1].length;
+    if (indent <= envIndent) { inEnv = false; continue; }
+    const varMatch = line.match(/^\s*([A-Za-z0-9_]+):/);
+    if (varMatch) names.push(varMatch[1]);
+  }
+  return names;
+}
+
+assert(
+  extractEnvVarNames(workflow).every((name) => /^RELEASE_/.test(name)),
+  'GitHub APK workflow still injects application environment values.',
+);
 assert(gradle.includes('release {') && gradle.includes('signingConfig signingConfigs.debug'), 'Release APK has no installable signing configuration.');
 assert(gradle.includes(`versionName "${appJson.expo.version}"`), 'Android versionName does not match app.json.');
 assert(gradle.includes(`versionCode ${appJson.expo.android.versionCode}`), 'Android versionCode does not match app.json.');

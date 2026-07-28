@@ -136,8 +136,9 @@ export async function createTrade(input: NewTradeInput) {
         `INSERT INTO trades (
           market, symbol, direction, status, entry_price, stop_loss, take_profit, lot_size, quantity,
           risk_percent, account_balance, risk_amount, pip_size, contract_size, pip_value_at_entry,
+          position_type, leverage,
           rr_ratio, open_time, strategy, emotion_entry, setup_notes, checklist
-        ) VALUES (?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         input.market,
         input.symbol,
         input.direction,
@@ -152,6 +153,8 @@ export async function createTrade(input: NewTradeInput) {
         input.pip_size,
         input.contract_size,
         input.pip_value_at_entry ?? null,
+        input.position_type ?? null,
+        input.leverage ?? null,
         rr,
         input.open_time,
         input.strategy ?? null,
@@ -232,9 +235,10 @@ export async function importTrades(inputs: ImportedTradeInput[]): Promise<TradeI
         `INSERT INTO trades (
           market, symbol, direction, status, entry_price, exit_price, stop_loss, take_profit, lot_size, quantity,
           risk_percent, account_balance, risk_amount, pip_size, contract_size, pip_value_at_entry,
+          position_type, leverage,
           commission, swap_fee, funding_fee, pnl_gross, pnl_net, pnl_pips, rr_ratio,
           open_time, close_time, strategy, setup_notes, checklist
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         input.market,
         input.symbol,
         input.direction,
@@ -251,6 +255,8 @@ export async function importTrades(inputs: ImportedTradeInput[]): Promise<TradeI
         input.pip_size,
         input.contract_size,
         input.pip_value_at_entry ?? null,
+        input.position_type ?? null,
+        input.leverage ?? null,
         input.commission ?? 0,
         input.swap_fee ?? 0,
         input.funding_fee ?? 0,
@@ -335,6 +341,8 @@ export type UpdateTradeInput = Partial<Pick<Trade,
   | 'pip_size'
   | 'contract_size'
   | 'pip_value_at_entry'
+  | 'position_type'
+  | 'leverage'
   | 'open_time'
   | 'close_time'
   | 'strategy'
@@ -367,7 +375,7 @@ export async function updateTrade(id: number, input: UpdateTradeInput) {
   await db.runAsync(
     `UPDATE trades SET
       market = ?, symbol = ?, direction = ?, entry_price = ?, exit_price = ?, stop_loss = ?, take_profit = ?, lot_size = ?, quantity = ?,
-      risk_percent = ?, account_balance = ?, risk_amount = ?, pip_size = ?, contract_size = ?, pip_value_at_entry = ?,
+      risk_percent = ?, account_balance = ?, risk_amount = ?, pip_size = ?, contract_size = ?, pip_value_at_entry = ?, position_type = ?, leverage = ?,
       rr_ratio = ?, open_time = ?, close_time = ?, strategy = ?, emotion_entry = ?, emotion_exit = ?, setup_notes = ?, exit_notes = ?, lesson_learned = ?,
       checklist = ?, commission = ?, swap_fee = ?, funding_fee = ?, pnl_gross = ?, pnl_net = ?, pnl_pips = ? WHERE id = ?`,
     merged.market,
@@ -385,6 +393,8 @@ export async function updateTrade(id: number, input: UpdateTradeInput) {
     Number(merged.pip_size),
     Number(merged.contract_size),
     merged.pip_value_at_entry ?? null,
+    merged.position_type ?? null,
+    merged.leverage ?? null,
     rr,
     merged.open_time,
     merged.close_time ?? null,

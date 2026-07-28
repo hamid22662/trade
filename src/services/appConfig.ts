@@ -14,8 +14,19 @@ export {
 
 export const APP_CONFIG_PATH = '/app-config.json';
 
+// On the web/PWA build, a relative fetch('/app-config.json') resolves against whatever
+// domain the app is hosted on - that's the whole point of the "same-origin static file"
+// design. The Android/iOS app has no "current origin" to resolve a relative path against,
+// so a plain fetch(APP_CONFIG_PATH) there always throws and silently falls back to the
+// (normally empty) compile-time environment config below, which is why the sponsor banner
+// never showed up in the installed APK even though it worked on the website.
+//
+// Update this if the hosting domain ever changes, then rebuild the APK.
 const NATIVE_APP_CONFIG_BASE_URL = 'https://hrey.siteamade.com';
 
+// navigator.product === 'ReactNative' is a lightweight, dependency-free way to detect the
+// actual native app at runtime (avoids importing the full 'react-native' module here, which
+// would break this file when it's loaded directly under plain Node by the smoke tests).
 function isRunningInNativeApp() {
   return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
 }

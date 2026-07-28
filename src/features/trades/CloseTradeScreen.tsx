@@ -7,7 +7,7 @@ import { Emotion, Trade } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { useFeedback } from '@/components/feedback';
 import { BackButton, Badge, Button, Card, ChipGroup, CollapsibleCard, Field, HeroCard, MiniKpi, MetricHero, ResponsiveRow, Screen, SectionHeading, Title } from '@/components/ui';
-import { calculateClosedTrade, calculateSlDistance, formatMoney, formatNumber } from '@/services/calculations';
+import { calculateClosedTrade, calculatePriceDistancePercent, calculateSlDistance, formatMoney, formatNumber } from '@/services/calculations';
 import { formatRMultiple, getTradeDurationLabel } from '@/services/tradeMetrics';
 import { MAX_TRADE_IMAGES, pickAndPersistChartImage } from '@/services/images';
 
@@ -84,7 +84,9 @@ export default function CloseTradeScreen() {
   };
 
   const size = trade.market === 'forex' ? `${trade.lot_size} Lot` : `${trade.quantity ?? '—'} Qty`;
-  const distance = exit ? calculateSlDistance(Number(trade.entry_price), toNumber(exit), trade.pip_size) : 0;
+  const distance = exit ? (trade.market === 'crypto'
+    ? calculatePriceDistancePercent(Number(trade.entry_price), toNumber(exit))
+    : calculateSlDistance(Number(trade.entry_price), toNumber(exit), trade.pip_size)) : 0;
   const previewTone = preview ? preview.netPnl >= 0 ? 'success' : 'danger' : 'primary';
   const estimatedR = preview && trade.risk_amount ? preview.netPnl / Math.abs(Number(trade.risk_amount)) : null;
   const duration = getTradeDurationLabel({ open_time: trade.open_time, close_time: new Date().toISOString() } as Trade, isRTL);
@@ -103,7 +105,7 @@ export default function CloseTradeScreen() {
       tone={previewTone}
       footer={(
         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
-          <MiniKpi label={t('trade.pips')} value={exit ? formatNumber(distance, 1) : '—'} tone="info" />
+          <MiniKpi label={trade.market === 'crypto' ? (isRTL ? 'فاصله' : 'Distance') : t('trade.pips')} value={exit ? (trade.market === 'crypto' ? `${formatNumber(distance, 2)}%` : formatNumber(distance, 1)) : '—'} tone="info" />
           <MiniKpi label={t('trade.grossPnl')} value={preview ? formatMoney(preview.grossPnl, currency) : '—'} tone={previewTone} />
           <MiniKpi label="R" value={formatRMultiple(estimatedR)} tone={previewTone} />
         </View>
