@@ -75,6 +75,7 @@ export default function CalculatorScreen() {
     ? calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(tp))
     : calculateSlDistance(toInputNumber(entry), toInputNumber(tp), pipSize);
   const distanceLabel = (value: number) => market === 'crypto' ? `${formatNumber(value, 2)}%` : `${formatNumber(value, 1)} ${t('trade.pips')}`;
+  const dollarReward = rr && rr > 0 ? result.riskAmount * rr : 0;
   const leverageValue = toInputNumber(leverage);
   const isLeveraged = market === 'crypto' && positionType === 'futures';
   const rrValue = rr ?? 0;
@@ -110,9 +111,14 @@ export default function CalculatorScreen() {
       eyebrow={`${symbolName} · ${market.toUpperCase()}`}
       title={heroTitle}
       value={heroValue}
-      caption={tab === 'rr' ? assessment : `${t('trade.riskAmount')}: ${currency} ${formatNumber(result.riskAmount, 2)}`}
+      caption={tab === 'rr' ? `${assessment} · ${currency} ${formatNumber(dollarReward, 2)}` : `${t('trade.riskAmount')}: ${currency} ${formatNumber(result.riskAmount, 2)}`}
       tone={heroTone}
-      footer={(
+      footer={tab === 'rr' ? (
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
+          <MiniKpi label={t('trade.riskAmount')} value={`${currency} ${formatNumber(result.riskAmount, 2)}`} tone="warning" />
+          <MiniKpi label={t('trade.rewardAmount')} value={dollarReward ? `${currency} ${formatNumber(dollarReward, 2)}` : '—'} tone={dollarReward ? 'success' : 'default'} />
+        </View>
+      ) : (
         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
           <MiniKpi label={t('calculator.slDistance')} value={market === 'forex' ? `${formatNumber(result.distance, 1)} ${t('trade.pips')}` : `${formatNumber(calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(sl)), 2)}%`} tone="warning" />
           <MiniKpi label={t('trade.pipPoint')} value={formatNumber(pipSize, 6)} tone="info" />
@@ -150,12 +156,15 @@ export default function CalculatorScreen() {
         <Segmented value={direction} onChange={(value) => setDirection(value as Direction)} options={[{ value: 'BUY', label: t('common.buy') }, { value: 'SELL', label: t('common.sell') }]} />
         <View style={{ height: 12 }} />
         <Field label={t('trade.takeProfit')} value={tp} onChangeText={setTp} keyboardType="decimal-pad" icon="target" />
-      </> : <>
-        <ResponsiveRow breakpoint={560} gap={10}>
-          <View style={{ flex: 1 }}><Field label={t('trade.accountBalance')} value={balance} onChangeText={setBalance} keyboardType="decimal-pad" suffix={currency} icon="dollar-sign" /></View>
-          <View style={{ flex: isPhone ? 1 : 0.48, minWidth: isPhone ? 0 : 170 }}><Field label={t('trade.riskPercent')} value={risk} onChangeText={setRisk} keyboardType="decimal-pad" suffix="%" icon="percent" /></View>
-        </ResponsiveRow>
-      </>}
+        <View style={{ height: 4 }} />
+      </> : null}
+      <ResponsiveRow breakpoint={560} gap={10}>
+        <View style={{ flex: 1 }}><Field label={t('trade.accountBalance')} value={balance} onChangeText={setBalance} keyboardType="decimal-pad" suffix={currency} icon="dollar-sign" /></View>
+        <View style={{ flex: isPhone ? 1 : 0.48, minWidth: isPhone ? 0 : 170 }}><Field label={t('trade.riskPercent')} value={risk} onChangeText={setRisk} keyboardType="decimal-pad" suffix="%" icon="percent" /></View>
+      </ResponsiveRow>
+      {tab === 'rr' ? <Text style={{ color: theme.colors.textSubtle, fontSize: 11, fontWeight: '700', marginTop: 10, textAlign: isRTL ? 'right' : 'left' }}>
+        {isRTL ? 'موجودی و درصد ریسک بالا برای محاسبه‌ی سود/ضرر دلاری استفاده می‌شن.' : 'The balance and risk % above are used to estimate the dollar profit/loss.'}
+      </Text> : null}
     </Card> : null}
 
     {tab === 'lot' ? <Card>
@@ -181,6 +190,8 @@ export default function CalculatorScreen() {
         <Stat label={t('calculator.reward')} value={distanceLabel(reward)} />
         <Stat label={t('trade.rr')} value={rr === null ? '—' : `1:${formatNumber(rr, 2)}`} tone="info" />
         <Stat label={t('calculator.assessment')} value={assessment} tone={rr === null ? 'default' : rrValue >= 1.5 ? 'success' : rrValue < 1 ? 'danger' : 'warning'} />
+        <Stat label={t('trade.riskAmount')} value={`${currency} ${formatNumber(result.riskAmount, 2)}`} tone="warning" />
+        <Stat label={t('trade.rewardAmount')} value={dollarReward ? `${currency} ${formatNumber(dollarReward, 2)}` : '—'} tone={dollarReward ? 'success' : 'default'} />
       </View>
     </Card> : null}
 
