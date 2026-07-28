@@ -48,15 +48,21 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Decode release signing keystore
-        # Optional: only runs if the RELEASE_KEYSTORE_BASE64 repository secret has been set
-        # (Settings -> Secrets and variables -> Actions). Without it, the build below falls
-        # back to the throwaway debug keystore generated above - fine for personal testing,
-        # but store submissions (Bazaar/Myket) need the real, permanent release keystore so
-        # every future update keeps the same signature.
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        # Optional: only writes a file if the RELEASE_KEYSTORE_BASE64 repository secret has
+        # been set (Settings -> Secrets and variables -> Actions). Without it, the build below
+        # falls back to the throwaway debug keystore generated above - fine for personal
+        # testing, but store submissions (Bazaar/Myket) need the real, permanent release
+        # keystore so every future update keeps the same signature.
+        # (GitHub Actions does not allow the `secrets` context inside `if:`, so the emptiness
+        # check happens in the shell instead.)
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        run: echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          else
+            echo "No RELEASE_KEYSTORE_BASE64 secret set; the debug keystore will sign this build."
+          fi
 
       - name: Install JavaScript dependencies
         run: npm ci
