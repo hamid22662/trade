@@ -554,21 +554,19 @@ export default function SettingsScreen() {
     </CollapsibleCard>
 
     <CollapsibleCard title={t('settings.data')} subtitle={t('settings.dataHint')} icon="database" defaultOpen={false}>
-      {Platform.OS === 'web' ? <>
-        <View style={{ borderWidth: 1, borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft, borderRadius: 20, padding: 14, marginBottom: 12 }}>
-          <View style={{ flexDirection: rowDirection, gap: 10, alignItems: 'center' }}>
-            <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface }}>
-              <Feather name="upload-cloud" size={20} color={theme.colors.primaryGlow} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: theme.colors.text, fontWeight: '900', textAlign, fontSize: 14 }}>{isRTL ? 'ورود خودکار از MetaTrader 4/5' : 'Auto-import from MetaTrader 4/5'}</Text>
-              <Text style={{ color: theme.colors.textMuted, fontWeight: '700', textAlign, lineHeight: 18, fontSize: 11, marginTop: 5 }}>{isRTL ? 'فایل History یا Account Statement با فرمت CSV/HTML را انتخاب کن؛ نماد، جهت، حجم، قیمت‌ها، زمان، کمیسیون، سواپ و سود خودکار تشخیص داده می‌شوند.' : 'Choose a History or Account Statement CSV/HTML file. Symbol, side, size, prices, times, commission, swap and P&L are detected automatically.'}</Text>
-            </View>
+      <View style={{ borderWidth: 1, borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft, borderRadius: 20, padding: 14, marginBottom: 12 }}>
+        <View style={{ flexDirection: rowDirection, gap: 10, alignItems: 'center' }}>
+          <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface }}>
+            <Feather name="upload-cloud" size={20} color={theme.colors.primaryGlow} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: theme.colors.text, fontWeight: '900', textAlign, fontSize: 14 }}>{isRTL ? 'ورود خودکار از MetaTrader 4/5' : 'Auto-import from MetaTrader 4/5'}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontWeight: '700', textAlign, lineHeight: 18, fontSize: 11, marginTop: 5 }}>{isRTL ? 'فایل History یا Account Statement با فرمت CSV/HTML را انتخاب کن؛ نماد، جهت، حجم، قیمت‌ها، زمان، کمیسیون، سواپ و سود خودکار تشخیص داده می‌شوند.' : 'Choose a History or Account Statement CSV/HTML file. Symbol, side, size, prices, times, commission, swap and P&L are detected automatically.'}</Text>
           </View>
         </View>
-        <Button title={isRTL ? 'انتخاب فایل متاتریدر' : 'Choose MetaTrader report'} icon="upload" variant="secondary" onPress={chooseMetaTraderReport} />
-        <View style={{ height: 16 }} />
-      </> : null}
+      </View>
+      <Button title={isRTL ? 'انتخاب فایل متاتریدر' : 'Choose MetaTrader report'} icon="upload" variant="secondary" onPress={chooseMetaTraderReport} />
+      <View style={{ height: 16 }} />
       <View style={{ borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceMuted, borderRadius: 20, padding: 14, marginBottom: 12 }}>
         <Text style={{ color: theme.colors.text, fontWeight: '900', textAlign, fontSize: 14 }}>{t('settings.exportCsv')}</Text>
         <Text style={{ color: theme.colors.textMuted, fontWeight: '700', textAlign, lineHeight: 18, fontSize: 11, marginTop: 6 }}>{t('settings.exportDescription')}</Text>
