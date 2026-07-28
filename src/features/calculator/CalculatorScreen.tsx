@@ -30,6 +30,7 @@ export default function CalculatorScreen() {
   const [sl, setSl] = useState('');
   const [tp, setTp] = useState('');
   const [lotSize, setLotSize] = useState('1');
+  const [rrVolume, setRrVolume] = useState('');
   const [positionType, setPositionType] = useState<PositionType>('spot');
   const [leverage, setLeverage] = useState('10');
 
@@ -53,6 +54,10 @@ export default function CalculatorScreen() {
     if (market !== 'crypto') setPositionType('spot');
   }, [market]);
 
+  useEffect(() => {
+    setRrVolume('');
+  }, [market, symbol]);
+
   const selectedSymbol = symbols.find((item) => item.symbol === symbol) ?? symbols[0];
   const pipSize = selectedSymbol?.pip_size ?? 0.0001;
   const contractSize = selectedSymbol?.contract_size ?? 100000;
@@ -75,7 +80,15 @@ export default function CalculatorScreen() {
     ? calculatePriceDistancePercent(toInputNumber(entry), toInputNumber(tp))
     : calculateSlDistance(toInputNumber(entry), toInputNumber(tp), pipSize);
   const distanceLabel = (value: number) => market === 'crypto' ? `${formatNumber(value, 2)}%` : `${formatNumber(value, 1)} ${t('trade.pips')}`;
-  const dollarReward = rr && rr > 0 ? result.riskAmount * rr : 0;
+  // Actual $ risk/reward for the volume you type in (falls back to the suggested size from
+  // the position-sizing formula when left empty) - not just the theoretical risk% of balance.
+  const rrVolumeValue = toInputNumber(rrVolume) || result.size;
+  const dollarRiskByVolume = market === 'forex'
+    ? distance * result.pipValue * rrVolumeValue
+    : Math.abs(toInputNumber(entry) - toInputNumber(sl)) * rrVolumeValue;
+  const dollarRewardByVolume = market === 'forex'
+    ? reward * result.pipValue * rrVolumeValue
+    : Math.abs(toInputNumber(tp) - toInputNumber(entry)) * rrVolumeValue;
   const leverageValue = toInputNumber(leverage);
   const isLeveraged = market === 'crypto' && positionType === 'futures';
   const rrValue = rr ?? 0;
@@ -111,12 +124,12 @@ export default function CalculatorScreen() {
       eyebrow={`${symbolName} · ${market.toUpperCase()}`}
       title={heroTitle}
       value={heroValue}
-      caption={tab === 'rr' ? `${assessment} · ${currency} ${formatNumber(dollarReward, 2)}` : `${t('trade.riskAmount')}: ${currency} ${formatNumber(result.riskAmount, 2)}`}
+      caption={tab === 'rr' ? `${assessment} · ${currency} ${formatNumber(dollarRewardByVolume, 2)}` : `${t('trade.riskAmount')}: ${currency} ${formatNumber(result.riskAmount, 2)}`}
       tone={heroTone}
       footer={tab === 'rr' ? (
         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
-          <MiniKpi label={t('trade.riskAmount')} value={`${currency} ${formatNumber(result.riskAmount, 2)}`} tone="warning" />
-          <MiniKpi label={t('trade.rewardAmount')} value={dollarReward ? `${currency} ${formatNumber(dollarReward, 2)}` : '—'} tone={dollarReward ? 'success' : 'default'} />
+          <MiniKpi label={t('trade.riskAmount')} value={`${currency} ${formatNumber(dollarRiskByVolume, 2)}`} tone="warning" />
+          <MiniKpi label={t('trade.rewardAmount')} value={dollarRewardByVolume ? `${currency} ${formatNumber(dollarRewardByVolume, 2)}` : '—'} tone={dollarRewardByVolume ? 'success' : 'default'} />
         </View>
       ) : (
         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 9 }}>
@@ -162,9 +175,22 @@ export default function CalculatorScreen() {
         <View style={{ flex: 1 }}><Field label={t('trade.accountBalance')} value={balance} onChangeText={setBalance} keyboardType="decimal-pad" suffix={currency} icon="dollar-sign" /></View>
         <View style={{ flex: isPhone ? 1 : 0.48, minWidth: isPhone ? 0 : 170 }}><Field label={t('trade.riskPercent')} value={risk} onChangeText={setRisk} keyboardType="decimal-pad" suffix="%" icon="percent" /></View>
       </ResponsiveRow>
-      {tab === 'rr' ? <Text style={{ color: theme.colors.textSubtle, fontSize: 11, fontWeight: '700', marginTop: 10, textAlign: isRTL ? 'right' : 'left' }}>
-        {isRTL ? 'موجودی و درصد ریسک بالا برای محاسبه‌ی سود/ضرر دلاری استفاده می‌شن.' : 'The balance and risk % above are used to estimate the dollar profit/loss.'}
-      </Text> : null}
+      {tab === 'rr' ? <>
+        <Field
+          label={market === 'forex' ? t('trade.lotSize') : t('trade.quantity')}
+          value={rrVolume}
+          onChangeText={setRrVolume}
+          keyboardType="decimal-pad"
+          placeholder={formatNumber(result.size, 4)}
+          suffix={market === 'forex' ? 'Lot' : 'Qty'}
+          icon="layers"
+        />
+        <Text style={{ color: theme.colors.textSubtle, fontSize: 11, fontWeight: '700', marginTop: 4, textAlign: isRTL ? 'right' : 'left' }}>
+          {isRTL
+            ? `اگه حجم رو خالی بذاری، حجم پیشنهادی (${formatNumber(result.size, 4)}، بر اساس موجودی و ریسک بالا) استفاده می‌شه.`
+            : `Leave the volume empty to use the suggested size (${formatNumber(result.size, 4)}, based on the balance and risk % above).`}
+        </Text>
+      </> : null}
     </Card> : null}
 
     {tab === 'lot' ? <Card>
@@ -190,8 +216,8 @@ export default function CalculatorScreen() {
         <Stat label={t('calculator.reward')} value={distanceLabel(reward)} />
         <Stat label={t('trade.rr')} value={rr === null ? '—' : `1:${formatNumber(rr, 2)}`} tone="info" />
         <Stat label={t('calculator.assessment')} value={assessment} tone={rr === null ? 'default' : rrValue >= 1.5 ? 'success' : rrValue < 1 ? 'danger' : 'warning'} />
-        <Stat label={t('trade.riskAmount')} value={`${currency} ${formatNumber(result.riskAmount, 2)}`} tone="warning" />
-        <Stat label={t('trade.rewardAmount')} value={dollarReward ? `${currency} ${formatNumber(dollarReward, 2)}` : '—'} tone={dollarReward ? 'success' : 'default'} />
+        <Stat label={t('trade.riskAmount')} value={`${currency} ${formatNumber(dollarRiskByVolume, 2)}`} tone="warning" />
+        <Stat label={t('trade.rewardAmount')} value={dollarRewardByVolume ? `${currency} ${formatNumber(dollarRewardByVolume, 2)}` : '—'} tone={dollarRewardByVolume ? 'success' : 'default'} />
       </View>
     </Card> : null}
 
